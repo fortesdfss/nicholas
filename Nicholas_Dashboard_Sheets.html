@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Nicholas — Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:Arial,sans-serif}
+body{background:#f0f2f5;color:#111}
+.wrap{max-width:1400px;margin:0 auto;padding:16px}
+.topbar{background:#fff;border-radius:12px;padding:14px 18px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;border:1px solid #e2e5ea}
+.title{font-size:24px;font-weight:700;color:#111}
+.sub{font-size:12px;color:#666;margin-top:3px}
+.pill{padding:5px 14px;border-radius:20px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.pill-green{background:#edfaf4;color:#0db87a}
+.pill-amber{background:#fffbeb;color:#d97706}
+.pill-red{background:#fef2f2;color:#ef4444}
+.btns{display:flex;gap:8px}
+.btn{height:32px;padding:0 14px;font-size:12px;font-weight:500;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer}
+.btn-blue{background:#2f80ed;color:#fff;border-color:#2f80ed}
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:12px}
+.kpi{background:#fff;border-radius:10px;padding:14px;border:1px solid #e2e5ea}
+.kpi-lbl{font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.kpi-val{font-size:22px;font-weight:700;color:#111}
+.kpi-unit{font-size:11px;font-weight:400;color:#999}
+.kpi-sub{font-size:10px;color:#888;margin-top:4px}
+.tabs{display:flex;gap:4px;margin-bottom:12px}
+.tab{padding:7px 18px;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid #ddd;background:#fff;color:#666}
+.tab.active{background:#2f80ed;color:#fff;border-color:#2f80ed}
+.row{display:grid;gap:12px;margin-bottom:12px}
+.r3{grid-template-columns:1fr 1fr 1fr}
+.r2{grid-template-columns:1fr 1fr}
+.r21{grid-template-columns:2fr 1fr}
+.card{background:#fff;border-radius:12px;padding:16px 18px;border:1px solid #e2e5ea}
+.card-title{font-size:10px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px}
+.chart-box{position:relative}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th{text-align:left;font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.06em;padding:6px 8px;border-bottom:1px solid #eee}
+td{padding:7px 8px;border-bottom:1px solid #f0f0f0;color:#111;white-space:nowrap}
+tr:hover td{background:#fafafa}
+.badge{display:inline-block;font-size:9px;font-weight:700;padding:2px 7px;border-radius:6px}
+.bg{background:#edfaf4;color:#0a6b47}
+.ba{background:#fffbeb;color:#92400e}
+.br{background:#fef2f2;color:#991b1b}
+.bb{background:#eef4fd;color:#1e40af}
+.hidden{display:none}
+.setup{max-width:560px;margin:60px auto;background:#fff;border-radius:16px;padding:32px;border:2px solid #2f80ed}
+.setup h2{font-size:22px;font-weight:700;margin-bottom:6px}
+.setup p{font-size:13px;color:#666;margin-bottom:20px}
+.setup input{width:100%;height:40px;padding:0 12px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:monospace;margin-bottom:10px}
+.setup input:focus{outline:none;border-color:#2f80ed}
+.loading{text-align:center;padding:80px;color:#666}
+.spin{width:32px;height:32px;border:3px solid #eee;border-top-color:#2f80ed;border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 14px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div id="s-setup" class="setup">
+  <h2>Nicholas · Dashboard</h2>
+  <p>Cole a URL do Google Apps Script para conectar à planilha</p>
+  <input id="url-input" type="text" placeholder="https://script.google.com/macros/s/.../exec">
+  <div style="display:flex;gap:8px;margin-top:4px">
+    <button class="btn btn-blue" style="flex:1;height:38px" onclick="conectar()">Conectar</button>
+    <button class="btn" style="height:38px" onclick="usarDemo()">Ver exemplo</button>
+  </div>
+</div>
+
+<div id="s-loading" class="loading hidden">
+  <div class="spin"></div>
+  <div>Carregando dados...</div>
+</div>
+
+<div id="s-dash" class="hidden">
+
+  <div class="topbar">
+    <div>
+      <div class="title">Nicholas</div>
+      <div class="sub">50m Borboleta · <span id="periodo">—</span> · <span id="n-sessoes">0</span> sessões</div>
+    </div>
+    <div class="btns">
+      <span class="pill" id="status-pill">OK</span>
+      <button class="btn btn-blue" onclick="carregar()">↻ Atualizar</button>
+      <button class="btn" onclick="mostrar('s-setup')">Trocar planilha</button>
+    </div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi"><div class="kpi-lbl">Volume</div><div class="kpi-val" id="kv-vol">—<span class="kpi-unit"> m</span></div><div class="kpi-sub" id="kv-vol-s"></div></div>
+    <div class="kpi"><div class="kpi-lbl">TRIMP</div><div class="kpi-val" id="kv-trimp">—<span class="kpi-unit"> UA</span></div><div class="kpi-sub">ref. 1.500–3.500</div></div>
+    <div class="kpi"><div class="kpi-lbl">PSE média</div><div class="kpi-val" id="kv-pse">—<span class="kpi-unit">/10</span></div><div class="kpi-sub" id="kv-pse-s"></div></div>
+    <div class="kpi"><div class="kpi-lbl">Vol AllOut</div><div class="kpi-val" id="kv-ao">—<span class="kpi-unit"> m</span></div><div class="kpi-sub" id="kv-ao-s"></div></div>
+    <div class="kpi"><div class="kpi-lbl">DPC médio Bo</div><div class="kpi-val" id="kv-dpc">—<span class="kpi-unit"> m/ciclo</span></div><div class="kpi-sub">ref. elite ≥ 2,20</div></div>
+    <div class="kpi"><div class="kpi-lbl">Strain semanal</div><div class="kpi-val" id="kv-strain">—<span class="kpi-unit"> UA</span></div><div class="kpi-sub">atenção &gt; 6.000</div></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="aba('carga')">Carga interna</button>
+    <button class="tab" onclick="aba('externa')">Carga externa</button>
+    <button class="tab" onclick="aba('desempenho')">Desempenho</button>
+    <button class="tab" onclick="aba('historico')">Histórico</button>
+    <button class="tab" onclick="aba('tabela')">Tabela</button>
+  </div>
+
+  <!-- CARGA INTERNA -->
+  <div id="tab-carga">
+    <div class="row r21">
+      <div class="card">
+        <div class="card-title">TRIMP por sessão + CIT acumulado</div>
+        <div class="chart-box" style="height:220px"><canvas id="c-trimp"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Volume por zona (%)</div>
+        <div class="chart-box" style="height:220px"><canvas id="c-zonas"></canvas></div>
+      </div>
+    </div>
+    <div class="row r3">
+      <div class="card">
+        <div class="card-title">Monotonia e Strain semanais</div>
+        <div class="chart-box" style="height:180px"><canvas id="c-strain"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">PSE por sessão</div>
+        <div class="chart-box" style="height:180px"><canvas id="c-pse"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">TRIMP semanal acumulado</div>
+        <div class="chart-box" style="height:180px"><canvas id="c-trimp-sem"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CARGA EXTERNA -->
+  <div id="tab-externa" class="hidden">
+    <div class="row r2">
+      <div class="card">
+        <div class="card-title">Volume por tipo de tarefa por sessão (m)</div>
+        <div class="chart-box" style="height:220px"><canvas id="c-tarefa"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Vol AllOut + Resistido por sessão (m)</div>
+        <div class="chart-box" style="height:220px"><canvas id="c-allout"></canvas></div>
+      </div>
+    </div>
+    <div class="row r3">
+      <div class="card">
+        <div class="card-title">N° AllOut total por sessão</div>
+        <div class="chart-box" style="height:180px"><canvas id="c-nallout"></canvas></div>
+        <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div style="background:#f5f7fa;border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:9px;color:#999;text-transform:uppercase;margin-bottom:4px">DESTRO</div>
+            <div style="font-size:20px;font-weight:700" id="nd-destro">—</div>
+          </div>
+          <div style="background:#f5f7fa;border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:9px;color:#999;text-transform:uppercase;margin-bottom:4px">SM AllOut</div>
+            <div style="font-size:20px;font-weight:700" id="nd-sm">—</div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Volume RTM por sessão (m)</div>
+        <div class="chart-box" style="height:240px"><canvas id="c-rtm"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Vel superfície SM AllOut (m/s)</div>
+        <div class="chart-box" style="height:240px"><canvas id="c-velsurf"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DESEMPENHO -->
+  <div id="tab-desempenho" class="hidden">
+    <div class="row r3">
+      <div class="card">
+        <div class="card-title">DPC — Borboleta (m/ciclo)</div>
+        <div class="chart-box" style="height:220px"><canvas id="c-dpc"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Velocidade — Borboleta (m/s)</div>
+        <div class="chart-box" style="height:220px"><canvas id="c-vel"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">FB — Borboleta (ciclos/min)</div>
+        <div class="chart-box" style="height:220px"><canvas id="c-fb"></canvas></div>
+      </div>
+    </div>
+    <div class="row r2">
+      <div class="card">
+        <div class="card-title">Índice de nado (vel × DPC)</div>
+        <div class="chart-box" style="height:200px"><canvas id="c-in"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Vel superfície + Breakout (SM AllOut)</div>
+        <div class="chart-box" style="height:200px"><canvas id="c-bo"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HISTÓRICO -->
+  <div id="tab-historico" class="hidden">
+    <div class="row r2">
+      <div class="card">
+        <div class="card-title">Volume semanal (m)</div>
+        <div class="chart-box" style="height:200px"><canvas id="c-vol-h"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">TRIMP semanal (UA)</div>
+        <div class="chart-box" style="height:200px"><canvas id="c-trimp-h"></canvas></div>
+      </div>
+    </div>
+    <div class="row r2">
+      <div class="card">
+        <div class="card-title">PSE média semanal</div>
+        <div class="chart-box" style="height:180px"><canvas id="c-pse-h"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Vol AllOut + Resistido semanal (m)</div>
+        <div class="chart-box" style="height:180px"><canvas id="c-ao-h"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABELA -->
+  <div id="tab-tabela" class="hidden">
+    <div class="card">
+      <div class="card-title">Histórico completo de sessões</div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr>
+            <th>Data</th><th>Tipo</th><th>Vol (m)</th><th>Dur</th><th>PSE</th><th>TRIMP</th>
+            <th>Vol NC</th><th>Vol BR</th><th>Vol PR</th><th>Vol TEC</th>
+            <th>Vol SubDK</th><th>Vol Resist.</th><th>Vol AllOut</th><th>Vol Fo</th>
+            <th>N°AllOut</th><th>RTM (m)</th><th>Saídas</th><th>DESTRO kg</th><th>Status</th>
+          </tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div><!-- fim dash -->
+</div><!-- fim wrap -->
+
+<script>
+const URL_KEY = 'nic_sheets_url_v4';
+const DEFAULT_URL = 'https://script.google.com/macros/s/AKfycbxzbj_aM7WY2i5XaOoMeAbJET7tfa_Q_VDVGf20zo8qh_2jIsk71VVxGG6IMa9ZNoiNGQ/exec';
+let URL = localStorage.getItem(URL_KEY) || DEFAULT_URL;
+let DB = {sessoes:[], series:[]};
+let charts = {};
+
+// ── INIT ──
+window.onload = () => {
+  document.getElementById('url-input').value = URL;
+  if (URL) carregar(); else mostrar('s-setup');
+};
+
+function mostrar(id) {
+  ['s-setup','s-loading','s-dash'].forEach(s => {
+    document.getElementById(s).classList.toggle('hidden', s !== id);
+  });
+}
+
+function conectar() {
+  const u = document.getElementById('url-input').value.trim();
+  if (!u || !u.includes('script.google.com')) { alert('URL inválida'); return; }
+  URL = u;
+  localStorage.setItem(URL_KEY, u);
+  carregar();
+}
+
+// ── CARREGAR DADOS ──
+async function carregar() {
+  mostrar('s-loading');
+  try {
+    const resp = await fetch(URL);
+    const json = await resp.json();
+    processar(json);
+  } catch(e1) {
+    // JSONP fallback
+    jsonp(URL, (json) => processar(json), () => {
+      mostrar('s-dash');
+      alert('Erro ao carregar. Verifique a URL e as permissões do Apps Script.');
+    });
+  }
+}
+
+function jsonp(url, cb, errCb) {
+  const name = 'cb_' + Date.now();
+  const full = url + (url.includes('?') ? '&' : '?') + 'callback=' + name;
+  const t = setTimeout(() => { cleanup(); errCb(); }, 15000);
+  function cleanup() { clearTimeout(t); const s=document.getElementById('_jsonp'); if(s)s.remove(); delete window[name]; }
+  window[name] = (data) => { cleanup(); cb(data); };
+  const s = document.createElement('script');
+  s.id = '_jsonp'; s.src = full;
+  s.onerror = () => { cleanup(); errCb(); };
+  document.head.appendChild(s);
+}
+
+// ── NORMALIZAR CAMPOS ──
+const CAMPO = {
+  pse_0_10:'pse', trimp_ua:'trimp', dura_o_min:'duracao_min',
+  vol_allout_total_m:'vol_allout_m', n_sa_das:'n_saidas',
+  ratio_w_r_allout:'ratio_wr_allout', alerta_carga:'alerta',
+  vol_subm_dk_aer_bio_m:'vol_subm_dk_aerobio_m',
+  vol_ovespeed_m:'vol_overspeed_m',
+  bloco_s_rie:'bloco', dist_ncia_m:'distancia_m',
+  velocidade_m_s:'velocidade_ms', dpc_m_ciclo:'dpc',
+  ndice_nado_m_ciclo:'indice_nado', vel_superf_cie_m_s:'vel_superficie_ms',
+  t_superf_cie_s:'t_superficie_s', fb_ciclos_min:'fb_cpm',
+};
+
+function norm(rows) {
+  if (!rows || !rows.length) return [];
+  return rows.map(r => {
+    const o = {};
+    Object.keys(r).forEach(k => {
+      const dest = CAMPO[k] || k;
+      let v = r[k];
+      if (typeof v === 'string') {
+        const n = parseFloat(v.replace(',','.'));
+        if (!isNaN(n) && v.trim() !== '') v = n;
+      }
+      o[dest] = v;
+    });
+    return o;
+  });
+}
+
+function processar(json) {
+  if (json.status === 'error') { alert('Erro: ' + json.error); mostrar('s-setup'); return; }
+  DB.sessoes = norm(json.sessoes || []);
+  DB.series  = norm(json.series  || []);
+  destruir();
+  renderizar();
+  mostrar('s-dash');
+}
+
+// ── HELPERS ──
+function n(v) { return +v || 0; }
+function f(id) { return document.getElementById(id); }
+function set(id, v) { const e=f(id); if(e) e.innerHTML=v; }
+function cor(v,lo,hi) { return v>hi?'#ef4444':v>lo?'#f59e0b':'#0db87a'; }
+function wk(d) {
+  const dt=new Date(d+'T12:00:00'); const day=dt.getDay()||7;
+  dt.setDate(dt.getDate()+4-day);
+  const y=dt.getFullYear();
+  const w=Math.ceil(((dt-new Date(y,0,1))/86400000+1)/7);
+  return 'S'+w;
+}
+const TT = {backgroundColor:'#fff',titleColor:'#111',bodyColor:'#555',padding:10,cornerRadius:8,borderColor:'rgba(0,0,0,.1)',borderWidth:1};
+const GRID = {ticks:{color:'#bbb',font:{size:9}},grid:{color:'rgba(0,0,0,.05)'},border:{display:false}};
+
+function destruir() {
+  Object.values(charts).forEach(c => { try{c.destroy()}catch(e){} });
+  charts = {};
+}
+
+function mkLine(id, datasets, opts={}) {
+  const el = f(id); if(!el) return;
+  charts[id] = new Chart(el, {
+    type:'line', data:{labels:opts.labels||[], datasets},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:TT},
+      scales:{x:{...GRID,ticks:{...GRID.ticks,font:{size:9}}},y:{...GRID,...(opts.y||{})}}, ...opts.extra}
+  });
+}
+function mkBar(id, datasets, opts={}) {
+  const el = f(id); if(!el) return;
+  charts[id] = new Chart(el, {
+    type:'bar', data:{labels:opts.labels||[], datasets},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:TT},
+      scales:{x:{stacked:opts.stacked,ticks:{color:'#bbb',font:{size:9}},grid:{display:false},border:{display:false}},
+              y:{stacked:opts.stacked,...GRID,...(opts.y||{})}}, ...opts.extra}
+  });
+}
+function ref(n, labels, color='rgba(239,68,68,.4)') {
+  return {type:'line',data:Array(labels.length).fill(n),borderColor:color,borderWidth:1.5,borderDash:[5,4],pointRadius:0,fill:false};
+}
+
+// ── RENDERIZAR ──
+function renderizar() {
+  const S = DB.sessoes;
+  const R = DB.series;
+  if (!S.length) return;
+
+  // Semanas
+  const wm = {};
+  S.forEach(s => {
+    const k = wk(s.data);
+    if (!wm[k]) wm[k] = {vol:0,trimp:0,pse:[],allout:0,res:0,items:[]};
+    wm[k].vol += n(s.volume_m);
+    wm[k].trimp += n(s.trimp);
+    if (s.pse) wm[k].pse.push(n(s.pse));
+    wm[k].allout += n(s.vol_allout_m);
+    wm[k].res += n(s.vol_resistido_m);
+    wm[k].items.push(s);
+  });
+  const wks = Object.keys(wm).sort();
+
+  // Métricas globais
+  const volTot = S.reduce((a,s)=>a+n(s.volume_m),0);
+  const trimpTot = S.reduce((a,s)=>a+n(s.trimp),0);
+  const withPse = S.filter(s=>s.pse);
+  const pseMed = withPse.length ? withPse.reduce((a,s)=>a+n(s.pse),0)/withPse.length : 0;
+  const aoTot = S.reduce((a,s)=>a+n(s.vol_allout_m),0);
+  const nAoTot = S.reduce((a,s)=>a+n(s.n_allout_total),0);
+  const nDest = S.reduce((a,s)=>a+n(s.n_allout_destro),0);
+  const nSM = S.reduce((a,s)=>a+n(s.n_allout_sm),0);
+
+  // DPC médio borboleta
+  const bos = R.filter(r=>r.estilo==='Borboleta'&&r.dpc);
+  const dpcMed = bos.length ? bos.reduce((a,r)=>a+n(r.dpc),0)/bos.length : 0;
+
+  // Strain (última semana)
+  const lastWk = wm[wks[wks.length-1]];
+  const lastTrimp = lastWk ? lastWk.trimp : 0;
+  const lastItems = lastWk ? lastWk.items : [];
+  const avgT = lastItems.length ? lastTrimp/lastItems.length : 0;
+  const sdT = lastItems.length > 1 ? Math.sqrt(lastItems.reduce((a,d)=>a+(n(d.trimp)-avgT)**2,0)/lastItems.length)||1 : 1;
+  const mono = Math.round(avgT/sdT*100)/100;
+  const strain = Math.round(lastTrimp*mono);
+
+  // KPIs
+  set('kv-vol', volTot.toLocaleString('pt-BR')+'<span class="kpi-unit"> m</span>');
+  set('kv-vol-s', S.length+' sessões');
+  set('kv-trimp', trimpTot.toLocaleString('pt-BR')+'<span class="kpi-unit"> UA</span>');
+  set('kv-pse', pseMed.toFixed(1)+'<span class="kpi-unit">/10</span>');
+  set('kv-pse-s', pseMed<=4?'Leve':pseMed<=6?'Moderado':pseMed<=8?'Intenso':'Muito Intenso');
+  set('kv-ao', aoTot.toLocaleString('pt-BR')+'<span class="kpi-unit"> m</span>');
+  set('kv-ao-s', nAoTot+' reps AllOut');
+  set('kv-dpc', dpcMed ? dpcMed.toFixed(2)+'<span class="kpi-unit"> m/ciclo</span>' : '—');
+  set('kv-strain', strain.toLocaleString('pt-BR')+'<span class="kpi-unit"> UA</span>');
+
+  // Status
+  const pill = f('status-pill');
+  if(strain>9000||trimpTot>5000||pseMed>8){pill.className='pill pill-red';pill.textContent='Carga Crítica';}
+  else if(strain>6000||trimpTot>3500||pseMed>6){pill.className='pill pill-amber';pill.textContent='Atenção';}
+  else{pill.className='pill pill-green';pill.textContent='Carga OK';}
+
+  // Período
+  const datas = S.map(s=>s.data).filter(Boolean).sort();
+  set('periodo', datas[0]+' – '+datas[datas.length-1]);
+  set('n-sessoes', S.length);
+
+  // Counters externa
+  set('nd-destro', nDest);
+  set('nd-sm', nSM);
+
+  const labels = S.map(s=>String(s.data).slice(5));
+
+  // ── GRÁFICOS CARGA INTERNA ──
+  const trimps = S.map(s=>n(s.trimp));
+  const pses = S.map(s=>n(s.pse));
+  let acc=0; const cit=trimps.map(t=>{acc+=t;return acc;});
+  const tColors = S.map(s=>n(s.pse)<=4?'#0db87a':n(s.pse)<=6?'#f59e0b':'#ef4444');
+
+  mkBar('c-trimp', [
+    {type:'bar',data:trimps,backgroundColor:tColors,borderRadius:6,maxBarThickness:50,yAxisID:'y'},
+    {type:'line',data:cit,borderColor:'#555',borderWidth:2,pointRadius:4,tension:.3,fill:false,yAxisID:'y2'},
+    ref(3500,labels,'rgba(239,68,68,.4)'), ref(1500,labels,'rgba(13,184,122,.4)'),
+  ], {labels, extra:{scales:{
+    x:{ticks:{color:'#bbb',font:{size:9}},grid:{display:false},border:{display:false}},
+    y:{...GRID,title:{display:true,text:'TRIMP sessão',color:'#bbb',font:{size:8}}},
+    y2:{position:'right',ticks:{color:'#bbb',font:{size:8}},grid:{display:false},border:{display:false},title:{display:true,text:'CIT acumulado',color:'#bbb',font:{size:8}}}
+  }}});
+
+  mkBar('c-zonas', [
+    {label:'Solto/A0',data:S.map(s=>n(s.pct_solto_a0)),backgroundColor:'#93c5fd'},
+    {label:'A1',data:S.map(s=>n(s.pct_a1)),backgroundColor:'#0db87a'},
+    {label:'A2/A3',data:S.map(s=>n(s.pct_a2)+n(s.pct_a3)),backgroundColor:'#f59e0b'},
+    {label:'RTM',data:S.map(s=>n(s.vol_rtm50_m)+n(s.vol_rtm100_m)+n(s.vol_rtm200_m)>0?((n(s.vol_rtm50_m)+n(s.vol_rtm100_m)+n(s.vol_rtm200_m))/n(s.volume_m)*100):0),backgroundColor:'#fb923c'},
+    {label:'AllOut',data:S.map(s=>n(s.pct_allout)||n(s.pct_fo)),backgroundColor:'#ef4444'},
+  ], {labels, stacked:true, y:{max:100,ticks:{...GRID.ticks,callback:v=>v+'%'}}});
+
+  const strainSem = wks.map(k=>{
+    const it=wm[k].items; const t=wm[k].trimp;
+    const av=t/Math.max(it.length,1);
+    const sd=Math.sqrt(it.reduce((a,d)=>a+(n(d.trimp)-av)**2,0)/Math.max(it.length,1))||1;
+    return Math.round(t*(av/sd));
+  });
+  mkBar('c-strain',[
+    {data:strainSem,backgroundColor:strainSem.map(v=>cor(v,3000,6000)),borderRadius:6,maxBarThickness:40},
+    ref(6000,wks,'rgba(239,68,68,.4)'),
+  ],{labels:wks});
+
+  mkLine('c-pse',[
+    {data:pses,borderColor:'#f59e0b',borderWidth:2,pointBackgroundColor:tColors,pointRadius:5,tension:.3,fill:'origin',backgroundColor:'rgba(245,158,11,.07)'},
+    ref(7,labels,'rgba(239,68,68,.4)'), ref(4,labels,'rgba(13,184,122,.4)'),
+  ],{labels,y:{min:0,max:11}});
+
+  const trimpSem=wks.map(k=>wm[k].trimp);
+  mkBar('c-trimp-sem',[
+    {data:trimpSem,backgroundColor:trimpSem.map(v=>cor(v,1500,3500)),borderRadius:6,maxBarThickness:50},
+    ref(3500,wks,'rgba(239,68,68,.4)'), ref(1500,wks,'rgba(13,184,122,.4)'),
+  ],{labels:wks});
+
+  // ── GRÁFICOS CARGA EXTERNA ──
+  mkBar('c-tarefa',[
+    {label:'NC',data:S.map(s=>n(s.vol_nc_m)),backgroundColor:'#2f80ed'},
+    {label:'BR',data:S.map(s=>n(s.vol_br_m)),backgroundColor:'#0891b2'},
+    {label:'PR',data:S.map(s=>n(s.vol_pr_m)),backgroundColor:'#0db87a'},
+    {label:'TEC',data:S.map(s=>n(s.vol_tec_m)),backgroundColor:'#f59e0b'},
+    {label:'SubDK',data:S.map(s=>n(s.vol_subm_dk_aerobio_m)+n(s.vol_subm_dk_allout_m)),backgroundColor:'#7c3aed'},
+    {label:'Resist.',data:S.map(s=>n(s.vol_resistido_m)),backgroundColor:'#ef4444'},
+  ],{labels,stacked:true});
+
+  mkBar('c-allout',[
+    {label:'AllOut',data:S.map(s=>n(s.vol_allout_m)),backgroundColor:'#ef4444',borderRadius:4,maxBarThickness:40},
+    {label:'Resistido',data:S.map(s=>n(s.vol_resistido_m)),backgroundColor:'#7c3aed',borderRadius:4,maxBarThickness:40},
+  ],{labels});
+
+  mkBar('c-nallout',[
+    {label:'DESTRO',data:S.map(s=>n(s.n_allout_destro)),backgroundColor:'#7c3aed',borderRadius:4},
+    {label:'SM',data:S.map(s=>n(s.n_allout_sm)),backgroundColor:'#ef4444',borderRadius:4},
+    ref(15,labels,'rgba(239,68,68,.4)'), ref(8,labels,'rgba(13,184,122,.4)'),
+  ],{labels,stacked:true});
+
+  mkBar('c-rtm',[
+    {label:'RTM50',data:S.map(s=>n(s.vol_rtm50_m)),backgroundColor:'#fb923c'},
+    {label:'RTM100',data:S.map(s=>n(s.vol_rtm100_m)),backgroundColor:'#f59e0b'},
+    {label:'RTM200',data:S.map(s=>n(s.vol_rtm200_m)),backgroundColor:'#0db87a'},
+  ],{labels,stacked:true});
+
+  const vsData = R.filter(r=>r.vel_superficie_ms && n(r.vel_superficie_ms)>0);
+  if(vsData.length) {
+    const vsLabels = vsData.map((_,i)=>i+1+'');
+    const vsVals = vsData.map(r=>n(r.vel_superficie_ms));
+    mkLine('c-velsurf',[
+      {data:vsVals,borderColor:'#f59e0b',borderWidth:2,pointBackgroundColor:vsVals.map(v=>v>=1.95?'#0db87a':v>=1.80?'#f59e0b':'#ef4444'),pointRadius:5,tension:.3,fill:'origin',backgroundColor:'rgba(245,158,11,.07)'},
+      ref(1.95,vsLabels,'rgba(13,184,122,.4)'), ref(1.80,vsLabels,'rgba(239,68,68,.4)'),
+    ],{labels:vsLabels,y:{min:1.4,max:2.5}});
+  }
+
+  // ── GRÁFICOS DESEMPENHO ──
+  const bo = R.filter(r=>r.estilo==='Borboleta'&&r.dpc);
+  if(bo.length){
+    const bl=bo.map((_,i)=>i+1+'');
+    const dpcs=bo.map(r=>n(r.dpc));
+    const vels=bo.map(r=>n(r.velocidade_ms));
+    const fbs=bo.map(r=>n(r.fb_cpm));
+    const ins=bo.map(r=>n(r.indice_nado));
+
+    mkLine('c-dpc',[
+      {data:dpcs,borderColor:'#2f80ed',borderWidth:2,pointBackgroundColor:dpcs.map(v=>v>=2.20?'#2f80ed':v>=1.80?'#f59e0b':'#ef4444'),pointRadius:5,tension:.3,fill:false},
+      ref(2.20,bl,'rgba(47,128,237,.35)'), ref(1.80,bl,'rgba(239,68,68,.35)'),
+    ],{labels:bl,y:{min:1.5,max:3.0}});
+
+    mkLine('c-vel',[
+      {data:vels,borderColor:'#7c3aed',borderWidth:2,pointBackgroundColor:vels.map(v=>v>=2.10?'#7c3aed':'#f59e0b'),pointRadius:5,tension:.3,fill:false},
+      ref(2.10,bl,'rgba(124,58,237,.35)'),
+    ],{labels:bl,y:{min:1.4,max:3.2}});
+
+    mkLine('c-fb',[
+      {data:fbs,borderColor:'#f59e0b',borderWidth:2,pointBackgroundColor:'#f59e0b',pointRadius:4,tension:.3,fill:'origin',backgroundColor:'rgba(245,158,11,.07)'},
+      ref(62,bl,'rgba(239,68,68,.4)'), ref(52,bl,'rgba(13,184,122,.4)'),
+    ],{labels:bl,y:{min:35,max:75}});
+
+    mkLine('c-in',[
+      {data:ins,borderColor:'#0db87a',borderWidth:2,pointBackgroundColor:ins.map(v=>v>=4.50?'#0db87a':v>=3.50?'#f59e0b':'#ef4444'),pointRadius:5,tension:.3,fill:'origin',backgroundColor:'rgba(13,184,122,.07)'},
+      ref(4.50,bl,'rgba(47,128,237,.35)'), ref(3.50,bl,'rgba(239,68,68,.35)'),
+    ],{labels:bl,y:{min:1,max:11}});
+
+    const boSurf = bo.filter(r=>r.vel_superficie_ms);
+    if(boSurf.length){
+      const bsl=boSurf.map((_,i)=>i+1+'');
+      mkLine('c-bo',[
+        {data:boSurf.map(r=>n(r.vel_superficie_ms)),borderColor:'#f59e0b',borderWidth:2,pointRadius:4,tension:.3,fill:false},
+        ref(1.95,bsl,'rgba(13,184,122,.4)'),
+      ],{labels:bsl,y:{min:1.4,max:2.5}});
+    }
+  }
+
+  // ── GRÁFICOS HISTÓRICO ──
+  const volSem=wks.map(k=>wm[k].vol);
+  const pseSem=wks.map(k=>wm[k].pse.length?Math.round(wm[k].pse.reduce((a,b)=>a+b,0)/wm[k].pse.length*10)/10:null);
+  const aoSem=wks.map(k=>wm[k].allout);
+  const resSem=wks.map(k=>wm[k].res);
+
+  mkBar('c-vol-h',[{data:volSem,backgroundColor:'#2f80ed',borderRadius:6,maxBarThickness:50}],{labels:wks});
+  mkBar('c-trimp-h',[
+    {data:trimpSem,backgroundColor:trimpSem.map(v=>cor(v,1500,3500)),borderRadius:6,maxBarThickness:50},
+    ref(3500,wks,'rgba(239,68,68,.4)'), ref(1500,wks,'rgba(13,184,122,.4)'),
+  ],{labels:wks});
+  mkLine('c-pse-h',[
+    {data:pseSem,borderColor:'#f59e0b',borderWidth:2,pointBackgroundColor:'#f59e0b',pointRadius:5,tension:.4,fill:'origin',backgroundColor:'rgba(245,158,11,.07)'},
+    ref(7,wks,'rgba(239,68,68,.4)'), ref(4,wks,'rgba(13,184,122,.4)'),
+  ],{labels:wks,y:{min:0,max:11}});
+  mkBar('c-ao-h',[
+    {label:'AllOut',data:aoSem,backgroundColor:'#ef4444',borderRadius:4,maxBarThickness:40},
+    {label:'Resistido',data:resSem,backgroundColor:'#7c3aed',borderRadius:4,maxBarThickness:40},
+  ],{labels:wks});
+
+  // ── TABELA ──
+  const tbody = f('tbody');
+  if(tbody){
+    tbody.innerHTML='';
+    [...S].reverse().forEach(s=>{
+      const pse=n(s.pse), trimp=n(s.trimp);
+      const rtm=n(s.vol_rtm50_m)+n(s.vol_rtm100_m)+n(s.vol_rtm200_m);
+      const subdk=n(s.vol_subm_dk_aerobio_m)+n(s.vol_subm_dk_allout_m);
+      const pb=pse<=4?'bg':pse<=6?'ba':'br';
+      const tb=trimp<=400?'bg':trimp<=600?'ba':'br';
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td>${s.data}</td><td><span class="badge bb">${s.tipo_treino||'—'}</span></td>
+        <td>${n(s.volume_m).toLocaleString('pt-BR')} m</td><td>${s.duracao_min||'—'} min</td>
+        <td><span class="badge ${pb}">${pse||'—'}</span></td>
+        <td><span class="badge ${tb}">${trimp||'—'}</span></td>
+        <td>${n(s.vol_nc_m)||'—'}</td><td>${n(s.vol_br_m)||'—'}</td>
+        <td>${n(s.vol_pr_m)||'—'}</td><td>${n(s.vol_tec_m)||'—'}</td>
+        <td>${subdk||'—'}</td><td>${n(s.vol_resistido_m)||'—'}</td>
+        <td>${n(s.vol_allout_m)||'—'}</td><td>${n(s.vol_fo_m)||'—'}</td>
+        <td>${n(s.n_allout_total)||'—'}</td><td>${rtm||'—'}</td>
+        <td>${n(s.n_saidas)||'—'}</td>
+        <td>${s.carga_destro_kg?s.carga_destro_kg+'kg':'—'}</td>
+        <td><span class="badge ${pb}">${pse<=4?'OK':pse<=6?'Atenção':'Intenso'}</span></td>`;
+      tbody.appendChild(tr);
+    });
+  }
+}
+
+// ── ABAS ──
+function aba(t) {
+  ['carga','externa','desempenho','historico','tabela'].forEach(id=>{
+    const el=f('tab-'+id); if(el) el.classList.toggle('hidden',id!==t);
+  });
+  document.querySelectorAll('.tab').forEach((b,i)=>{
+    b.classList.toggle('active',['carga','externa','desempenho','historico','tabela'][i]===t);
+  });
+}
+
+// ── DEMO ──
+function usarDemo() {
+  processar({
+    status:'ok',
+    sessoes:[
+      {data:'2025-03-09',dia:'Seg',tipo_treino:'COTP_LONGA',volume_m:2910,duracao_min:94,pse_0_10:4.5,trimp_ua:423,pct_solto_a0:68,pct_a1:13.7,pct_a2:0,pct_a3:3.4,pct_fo:14.8,pct_allout:0,vol_nc_m:950,vol_br_m:400,vol_pr_m:600,vol_tec_m:280,vol_subm_dk_aer_bio_m:0,vol_subm_dk_allout_m:0,vol_resistido_m:0,vol_ovespeed_m:0,vol_rtm50_m:0,vol_rtm100_m:0,vol_rtm200_m:0,vol_allout_total_m:100,vol_fo_m:430,n_allout_destro:0,n_allout_sm:0,n_allout_total:0,n_sa_das:2,ratio_w_r_allout:'—',carga_destro_kg:null},
+      {data:'2025-03-10',dia:'Ter',tipo_treino:'COTP_LONGA',volume_m:2000,duracao_min:85,pse_0_10:3.0,trimp_ua:255,pct_solto_a0:21,pct_a1:62.9,pct_a2:0,pct_a3:0,pct_fo:0,pct_allout:16.2,vol_nc_m:500,vol_br_m:300,vol_pr_m:600,vol_tec_m:200,vol_subm_dk_aer_bio_m:180,vol_subm_dk_allout_m:90,vol_resistido_m:0,vol_ovespeed_m:0,vol_rtm50_m:0,vol_rtm100_m:0,vol_rtm200_m:0,vol_allout_total_m:270,vol_fo_m:0,n_allout_destro:0,n_allout_sm:0,n_allout_total:0,n_sa_das:1,ratio_w_r_allout:'—',carga_destro_kg:null},
+      {data:'2025-03-11',dia:'Qua',tipo_treino:'COTP_LONGA',volume_m:2600,duracao_min:99,pse_0_10:4.0,trimp_ua:396,pct_solto_a0:54.8,pct_a1:22.8,pct_a2:4.6,pct_a3:0,pct_fo:17.8,pct_allout:0,vol_nc_m:700,vol_br_m:300,vol_pr_m:400,vol_tec_m:200,vol_subm_dk_aer_bio_m:0,vol_subm_dk_allout_m:0,vol_resistido_m:200,vol_ovespeed_m:0,vol_rtm50_m:0,vol_rtm100_m:0,vol_rtm200_m:0,vol_allout_total_m:200,vol_fo_m:460,n_allout_destro:8,n_allout_sm:0,n_allout_total:8,n_sa_das:2,ratio_w_r_allout:'1:5',carga_destro_kg:60},
+      {data:'2026-04-13',dia:'Seg',tipo_treino:'COTP_LONGA',volume_m:2400,duracao_min:136,pse_0_10:7.0,trimp_ua:952,pct_solto_a0:62.6,pct_a1:0,pct_a2:0,pct_a3:4.2,pct_fo:4.9,pct_allout:23.7,vol_nc_m:950,vol_br_m:400,vol_pr_m:600,vol_tec_m:280,vol_subm_dk_aer_bio_m:0,vol_subm_dk_allout_m:360,vol_resistido_m:200,vol_ovespeed_m:0,vol_rtm50_m:0,vol_rtm100_m:85,vol_rtm200_m:25,vol_allout_total_m:560,vol_fo_m:115,n_allout_destro:8,n_allout_sm:12,n_allout_total:20,n_sa_das:3,ratio_w_r_allout:'1:3',carga_destro_kg:40},
+    ],
+    series:[
+      {data:'2025-03-09',estilo:'Borboleta',dpc_m_ciclo:2.46,velocidade_m_s:2.381,fb_ciclos_min:58,ndice_nado_m_ciclo:5.857,vel_superf_cie_m_s:null,breakout_m:null},
+      {data:'2025-03-09',estilo:'Borboleta',dpc_m_ciclo:2.30,velocidade_m_s:2.281,fb_ciclos_min:59.5,ndice_nado_m_ciclo:5.246,vel_superf_cie_m_s:null,breakout_m:null},
+      {data:'2026-04-13',estilo:'Borboleta',dpc_m_ciclo:2.33,velocidade_m_s:2.016,fb_ciclos_min:52,ndice_nado_m_ciclo:4.697,vel_superf_cie_m_s:null,breakout_m:null},
+      {data:'2026-04-13',estilo:'Borboleta',dpc_m_ciclo:3.18,velocidade_m_s:3.000,fb_ciclos_min:56.6,ndice_nado_m_ciclo:9.54,vel_superf_cie_m_s:2.039,breakout_m:23.5},
+      {data:'2026-04-13',estilo:'Borboleta',dpc_m_ciclo:2.86,velocidade_m_s:2.703,fb_ciclos_min:56.8,ndice_nado_m_ciclo:7.731,vel_superf_cie_m_s:1.680,breakout_m:24.7},
+    ]
+  });
+}
+</script>
+</body>
+</html>
